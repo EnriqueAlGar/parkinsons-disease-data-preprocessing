@@ -3,7 +3,7 @@
 
 Este proyecto forma parte de mi portafolio de Machine Learning y Ciencia de Datos. Consiste en un pipeline completo y riguroso de limpieza, exploración y preprocesado de un dataset clínico de 2.105 pacientes para la predicción de la Enfermedad de Parkinson.
 
-**[HAZ CLIC AQUÍ PARA VER EL INFORME COMPLETO E INTERACTIVO](https://enriquealgar.github.io/parkinsons-disease-data-preprocessing/)**
+**[HAZ CLIC AQUÍ PARA VER EL INFORME COMPLETO E INTERACTIVO](https://htmlpreview.github.io/?https://github.com/EnriqueAlGar/parkinsons-disease-data-preprocessing/blob/main/analisis_parkinson.html)**
 
 ## Tecnologías y Técnicas Aplicadas
 El proyecto está desarrollado en **R** utilizando enfoques multivariantes para garantizar un *Data Leakage* cero (cero fuga de datos entre Train y Test):
