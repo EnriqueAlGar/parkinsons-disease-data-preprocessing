@@ -1,7 +1,7 @@
 ---
 title: |
- <b><div style="text-align: center"> EVALUACION MODULO 1 PREPROCESADO DE DATOS - PARKINSONS_DISEASE_DATA </div></b>
-author: "Enrique Alises García"
+ <b><div style="text-align: center"> PREPROCESADO DE DATOS - PARKINSONS_DISEASE_DATA </div></b>
+author: "Enrique AlGar"
 output: 
    rmdformats::readthedown:
     code_folding: hide
