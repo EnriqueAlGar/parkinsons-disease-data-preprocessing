@@ -1,0 +1,56 @@
+/* --- readthedown blue theme --- */
+
+/* Fondo de la barra lateral y cabecera */
+#sidebar h2, #table-of-contents header {
+    background-color: #9a7d0a; /* Verde marino oscuro (Teal) */
+    color: #ffffff;
+}
+#sidebar {
+    background-color: #1c2833; /* Azul mucho más oscuro que el anterior */
+}
+.title {
+    color: #7d6608;
+}
+
+/* Enlaces y texto interactivo */
+#main a {
+    color: #7d6608;
+    background-image: linear-gradient(180deg,transparent 65%,#b3d9ff 0);
+}
+#main a:hover {
+    color: #003366;
+    background-image: linear-gradient(180deg,transparent 65%,#80bfff 0);
+}
+
+/* Títulos y texto destacado */
+h1, h2, h3, h4, h5, h6, legend {
+    color: #7d6608;
+}
+
+/* Tabla de contenidos (TOC) y elementos activos */
+#table-of-contents header {
+    background-color: #7d6608;
+}
+#table-of-contents h2 {
+    background-color: #7d6608;
+}
+#main .nav-pills > li.active > a, 
+#main .nav-pills > li.active > a:hover, 
+#main .nav-pills > li.active > a:focus {
+    background-color: #7d6608;
+}
+#main .nav-pills > li > a:hover {
+    background-color: #b3d9ff;
+    color: #003366;
+}
+
+/* Color del número de página o indicadores */
+#nav-top span.glyphicon {
+    color: #7d6608;
+}
+
+/* Fondo del área de lectura para reducir fatiga visual */
+#content {
+    background-color: #fafafa; /* Blanco roto / Crema sutil */
+    color: #333333;           /* Gris muy oscuro para el texto (menos agresivo que negro) */
+}

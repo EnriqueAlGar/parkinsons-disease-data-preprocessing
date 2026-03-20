@@ -1,0 +1,1073 @@
+---
+title: |
+ <b><div style="text-align: center"> EVALUACION MODULO 1 PREPROCESADO DE DATOS - PARKINSONS_DISEASE_DATA </div></b>
+author: "Enrique Alises García"
+output: 
+   rmdformats::readthedown:
+    code_folding: hide
+    highlight: tango
+    css: tema_preprocesado.css
+---
+
+El dataset *parkinsons_disease_data* contiene información sobre 2.105 pacientes diagnosticados con la enfermedad de Parkinson. El conjunto de datos incluye información demográfica, antecedentes médicos, mediciones clínicas, evaluaciones cognitivas y funcionales, síntomas y un indicador de diagnóstico.
+
+## 1. Descripción de las variables
+
+### Identificador paciente:
+
+-   **PatientID**: Identificador único asignado a cada paciente.
+
+### Variables demográficas:
+
+-   **Age**: Edad del paciente (50–90 años).
+-   **Gender**: Género (0 = Masculino, 1 = Femenino).
+-   **Ethnicity**: Etnicidad (0 = Caucásico, 1 = Afroamericano, 2 = Asiático, 3 = Otro).
+-   **EducationLevel**: Nivel educativo (0 = Ninguno, 1 = Secundaria, 2 = Licenciatura, 3 = Superior).
+
+### Estilo de vida:
+
+-   **BMI**: Índice de masa corporal (15–40).
+-   **Smoking**: Estado de fumador (0 = No, 1 = Sí).
+-   **AlcoholConsumption**: Consumo semanal de alcohol (0–20 unidades).
+-   **PhysicalActivity**: Actividad física semanal (0–10 horas).
+-   **DietQuality**: Calidad de la dieta (0–10).
+-   **SleepQuality**: Calidad del sueño (4–10).
+
+### Antecedentes médicos:
+
+-   **FamilyHistoryParkinsons**: Historia familiar de Parkinson (0 = No, 1 = Sí).
+-   **TraumaticBrainInjury**: Lesión cerebral traumática previa (0 = No, 1 = Sí).
+-   **Hypertension**: Hipertensión (0 = No, 1 = Sí).
+-   **Diabetes**: Diabetes (0 = No, 1 = Sí).
+-   **Depression**: Depresión (0 = No, 1 = Sí).
+-   **Stroke**: Accidente cerebrovascular previo (0 = No, 1 = Sí).
+
+### Indicadores clínicos:
+
+-   **SystolicBP**: Presión arterial sistólica (90–180 mmHg).
+-   **DiastolicBP**: Presión arterial diastólica (60–120 mmHg).
+-   **CholesterolTotal**: Colesterol total (150–300 mg/dL).
+-   **CholesterolLDL**: Colesterol LDL (50–200 mg/dL).
+-   **CholesterolHDL**: Colesterol HDL (20–100 mg/dL).
+-   **CholesterolTriglycerides**: Triglicéridos (50–400 mg/dL).
+-   **MoCA**: Evaluación cognitiva Montreal (0–30).
+-   **FunctionalAssessment**: Evaluación funcional (0–10).
+
+### Síntomas:
+
+-   **Tremor**: Temblores (0 = No, 1 = Sí).
+-   **Rigidity**: Rigidez muscular (0 = No, 1 = Sí).
+-   **Bradykinesia**: Bradicinesia (0 = No, 1 = Sí).
+-   **PosturalInstability**: Inestabilidad postural (0 = No, 1 = Sí).
+-   **SpeechProblems**: Problemas del habla (0 = No, 1 = Sí).
+-   **SleepDisorders**: Trastornos del sueño (0 = No, 1 = Sí).
+-   **Constipation**: Estreñimiento (0 = No, 1 = Sí).
+
+### Presencia de la enfermedad:
+
+-   **Diagnosis**: Diagnóstico de enfermedad de Parkinson (0 = No, 1 = Sí).
+
+## 2. Carga y exploración inicial de datos
+
+```{r, warning=FALSE, message=FALSE}
+library(arrow)
+library(tidyverse)
+library(skimr)
+library(knitr)
+library(kableExtra)
+library(mice)
+library(formattable)
+library(corrplot)
+library(naniar)
+library(gridExtra)
+library(solitude)
+library(UBL)
+
+# Reproducibilidad
+set.seed(123)
+
+# Gestión de Directorios
+path <- getwd()
+data_file <- "parkinsons_disease_data.parquet"
+functions_file <- "funciones.R"
+
+# Definición de las rutas completas
+data_filepath <- paste0(path, "/", data_file)
+personal_functions_filepath <- paste0(path, "/", functions_file)
+
+# Carga de funciones propias
+source(personal_functions_filepath)
+
+# Carga del dataset
+df <- read_parquet(data_filepath)
+```
+
+### 2.1 Lectura del dataset y dimensiones
+
+```{r}
+formattable(head(df, 5))
+```
+
+Contar con 2.105 pacientes proporciona una base suficiente para realizar análisis estadísticos exploratorios y modelización posterior. Este primer vistazo a la tabla nos sirve para ver que existen variables dicotómicas numéricas, que vamos a tener que convertir a factor.
+
+Incialmente realizaremos dos comprobaciones:
+
+-   **Si hay pacientes repetidos** Para asegurarnos de que no hay filas duplicadas.
+-   **Si hay valores nulos (NA)** Para localizar que cantidad hay y poder seleccionar el método correcto para su tratamiento .
+
+### 2.2 Duplicados e identificadores
+
+Se realiza la comprobación para comprobar si existen filas repetidas con el mismo identificador del paciente (PatientID), ya que, si por algún error, existen pacientes duplicados en la tabla, podría repercutir en nuestras conclusiones finales.
+
+```{r}
+duplicados_id <- sum(duplicated(df$PatientID))
+duplicados_id
+```
+
+Como podemos ver en el resultado, no hay ninguna fila repetida; cada registro de la tabla es un paciente distinto.
+
+Por otro lado, la variable PatientID, es solo un número de identificación que no nos aporta ninguna información para los objetivos del análisis. Por ese motivo, procedemos a su eliminación.
+
+```{r}
+df <- df %>% select(-PatientID)
+```
+
+### 2.3 Adecuación de tipos de variable
+
+El objetivo de este proyecto es analizar la relación entre las variables demográficas, el estilo de vida, el historial médico y los síntomas con el diagnóstico de la enfermedad de Parkinson.
+
+La variable Diagnosis refleja dos valores (0 = no tiene la enfermedad, 1 = si tiene Parkinson) y será nuestra variable objetivo en un futuro modelo predictivo.
+
+Comprobación del balance de la variable objetivo Diagnosis
+
+```{r}
+formattable(distinct_function_count(df, "Diagnosis"))
+```
+
+Es una variable dicotómica (toma los valores 1 y 0; presencia y ausencia, respectivamente) y se hace necesaria su conversón a factor para que no sea tratada como una variable numérica. Esta conversión también se extiende al resto de variables dicotómicas (binarias).
+
+Al hacer esta conversión hacemos una distinción importante:
+
+1.  Variables sin orden (Nominales): Como el Género, la Etnia o tener Diabetes. No existe una ordenación por categorías. Simplemente las convertimos a factor normal.
+2.  Variables con orden (Ordinales): Aquí tenemos el Nivel Educativo (Education level). A diferencia de las anteriores, la educación sí tiene un orden de menor a mayor (Ninguno \< Secundaria \< Grado \< Posgrado). A esta variable la asignaremos también como factor con jerarquía
+
+**Conversión de las variables a factor:**
+
+```{r}
+
+variables_categoricas <- c(
+  "Gender", "Ethnicity", "Smoking", "FamilyHistoryParkinsons", 
+  "TraumaticBrainInjury", "Hypertension", "Diabetes", "Depression", 
+  "Stroke", "Tremor", "Rigidity", "Bradykinesia", "PosturalInstability", 
+  "SpeechProblems", "SleepDisorders", "Constipation", "Diagnosis"
+)
+
+df <- df %>%
+  mutate(across(all_of(variables_categoricas), as.factor))
+
+df$EducationLevel <- factor(df$EducationLevel, ordered = TRUE)
+```
+
+Comprobación de los tipos de variables tras la modificación:
+
+```{r}
+
+desc_df <- skim(df)
+
+tabla_tipos <- desc_df %>%
+  select(Variable = skim_variable,
+         Tipo = skim_type) %>%
+  arrange(Tipo)
+
+kable(tabla_tipos, caption = "Tipo de cada variable del dataset")
+```
+
+### 2.4 Revisión de valores nulos
+
+A continuación, contabilizamos cuántos datos nos faltan en cada variable. Esto nos ayudará a comprobar si tenemos suficiente información o si, por el contrario, vamos a necesitar usar herramientas estadísticas para rellenar esos valores faltantes.
+
+```{r}
+
+resumen_datos <- skim(df)
+
+tabla_nulos <- resumen_datos %>%
+  mutate(porcentaje_nulos = round(100 * (1 - complete_rate), 2)) %>%
+  select(Tipo = skim_type, Variable = skim_variable, Nulos = n_missing, Porcentaje = porcentaje_nulos) %>%
+  filter(Nulos > 0) %>% 
+  arrange(desc(Nulos))
+
+formattable(tabla_nulos, 
+            align = c("l", "l", "c", "c"),
+            list(Nulos = color_bar("mistyrose"),
+                 Porcentaje = color_text("black", "red")))
+```
+
+Observamos que 8 variables presentan valores nulos que rondan el 10%. Destaca la variable Diabetes con un 11.45% de datos faltantes.
+
+Vamos a calcular cuántos pacientes perderíamos si decidimos eliminar a todos los pacientes que tienen valores NA:
+
+```{r}
+
+datos_sin_nulos <- df %>% drop_na()
+porcentaje_perdida <- round((1 - nrow(datos_sin_nulos) / nrow(df)) * 100, 2)
+
+cat("Si eliminamos todos los registros con algún NA, perderíamos el", porcentaje_perdida, "% de los pacientes.\n")
+```
+
+La eliminación completa de registros con valores ausentes implicaría una pérdida superior al **50% de la muestra total**, comprometiendo gravemente la potencia estadística del estudio.
+
+#### 2.4.1 Comprobación de patrón de valores nulos
+
+Comprobamos si existe algún patrón en los valores nulos. Es decir, queremos ver si existen pacientes con los NA coincidentes.
+
+```{r warning=FALSE}
+
+gg_miss_upset(df, 
+              nsets = 8,          
+              nintersects = 10,   
+              
+              text.scale = c(1.2, 1, 1.2, 1, 1.1, 1), 
+              
+              main.bar.color = "#457b9d",  
+              sets.bar.color = "#e63946",
+              matrix.color = "#1d3557")
+```
+
+De entre todas las variables, se han seleccionado para mostrar en el gráfico las 8 variables que tienen más valores nulos y las 10 combinaciones más frecuentes.
+
+Las barras horizontales (abajo a la izquierda): Indican el total de NAs totales que tiene cada variable.
+
+Los puntos y las líneas conectadas (abajo a la derecha): Indican las combinaciones. Por ejemplo, si hay un punto negro solo en Diabetes, significa que pacientes a los que solo les falta esa variable. Si hay dos puntos conectados por una línea entre Diabetes y Gender, significa pacientes a los que les faltan ambas variables.
+
+Las barras verticales (arriba): Indican cuántos pacientes tienen esa combinación indicada en los puntos.
+
+Al observar el gráfico, vemos que las barras verticales más altas corresponden a variables aisladas (un solo punto negro). Las combinaciones donde faltan varios datos a la vez (puntos conectados) tienen barras verticales pequeñas.
+
+Esto nos confirma visualmente que los NAs no se agrupan en bloque, sino que faltan al azar. Esto sugiere que la pérdida de información no obedece a un patrón estructural (MNAR), sino que se aproxima a un mecanismo MCAR (Missing Completely At Random) o MAR (Missing At Random).
+
+#### 2.4.2 Análisis de nulos por paciente
+
+Para comprobar si existen pacientes a los que les falte una cantidad considereable de variables, lo cual no puede apreciarse en el gráfico al tratarse de un número reducido, vamos a contabilizar cuántos datos le faltan a cada paciente individualmente. En caso de comprobar que hay pacientes a los que les faltan 15 o 20 datos, tendríamos que eliminarlos del estudio.
+
+```{r}
+
+df$cantidad_nulos <- rowSums(is.na(df))
+
+cat("Resumen de cuántos NAs tiene cada paciente:\n")
+
+summary(df$cantidad_nulos)
+```
+
+Al revisar el resumen estadístico, se comprueba que el valor máximo es 5. Esto significa que, en el peor de los casos, a un paciente solo le faltan 5 variables de un total de 32. A la gran mayoría (el 75%, fijándonos en el tercer cuartil) solo le falta 1 dato o ninguno.
+
+Como no tenemos a ningún paciente con el historial vacío, confirmamos que, basándonos en el conteo de valores nulos, la calidad de los registros es lo suficientemente buena como para conservar a todos los pacientes.
+
+```{r}
+# Borramos la columna temporal
+
+df <- df %>% select(-cantidad_nulos)
+```
+
+### 2.5 Conclusión
+
+La exploración inicial de los datos confirma la integridad estructural del dataset con la ausencia de duplicados y/o de pacientes con mayoría de datos faltantes.
+
+## 3. Análisis descriptivo y gráfico
+
+Una vez asegurada la calidad de los datos, procedemos a realizar un análisis descriptivo y gráfico. El objetivo es comprender la distribución de las variables y evaluar, tanto visual como estadísticamente, su relación con la enfermedad de Parkinson.
+
+### 3.1 Análisis individual (Univariante)
+
+#### 3.1.1 Variables numéricas
+
+##### 3.1.1.1 Análisis descriptivo de las variables numéricas
+
+Extraemos una tabla rápida para comprobar en qué rangos están los pacientes de la muestra y descartar valores biológicamente anómalos.
+
+```{r}
+
+desc_df <- skim(df)
+
+desc_numeric_var_df <- desc_df %>%
+  filter(skim_type == "numeric") %>%
+  select(
+    Variable = skim_variable,
+    Media = numeric.mean,
+    Desv_Std = numeric.sd,
+    Minimo = numeric.p0,
+    P25 = numeric.p25,
+    Mediana = numeric.p50,
+    P75 = numeric.p75,
+    Maximo = numeric.p100
+  ) %>%
+  mutate(across(where(is.numeric), \(x) round(x, 3)))
+
+formattable(desc_numeric_var_df)
+
+```
+
+Interpretación de los estadísticos descriptivos:
+
+La variable Age tiene un rango que va desde los 50 hasta los 89 años, con una media de aproximadamente 69.6. Los percentiles 25 y 75 están perfectamente equilibrados (60 y 80 respectivamente), lo que sugiere una distribución simétrica que encaja de forma ideal con el grupo demográfico de riesgo de la enfermedad.
+
+La variable BMI (Índice de Masa Corporal) tiene valores comprendidos entre 15 y 40, con una media en torno a 27.2. La desviación estándar (7.2) no es excesivamente alta, pero la diferencia entre los extremos sugiere la presencia de pacientes que van desde la infrapeso hasta la obesidad.
+
+Las variables de estilo de vida (AlcoholConsumption, PhysicalActivity, DietQuality y SleepQuality) muestran medias muy centradas en el medio de sus respectivas escalas. Sus cuartiles denotan una distribución razonablemente simétrica.
+
+En cuanto a la presión arterial, SystolicBP tiene una media de 133.7 y valores entre 90 y 179, lo que refleja una variación considerable. Los cuartiles están bien definidos, pero los valores máximos cercanos a 180 pueden representar episodios de hipertensión. La DiastolicBP muestra un comportamiento similar.
+
+El bloque de colesterol muestra una gran dispersión, especialmente los CholesterolTriglycerides, con un valor mínimo de 50 y un máximo que roza los 400 (con una desviación estándar alta de 101.8). En el CholesterolTotal, los valores oscilan entre 150 y 299, con una media y mediana muy similares (226 y 228), lo que indica que la distribución es simétrica a pesar de la amplitud del rango.
+
+Por último, las evaluaciones clínicas como MoCA (test cognitivo) muestran una media de 15.09 y una desviación estándar de 8.64. Si bien su distribución parece normalizada en torno a la mediana, el valor mínimo (cercano a 0) podría indicar pacientes con un deterioro cognitivo extremo.
+
+##### 3.1.1.2 Análisis gráfico de las variables numéricas
+
+Para corroborar visualmente las conclusiones extraídas del resumen estadístico, analizamos la distribución de las variables numéricas. Haremos uso de histogramas, superponiendo la curva de densidad normal teórica (en rojo) para evaluar visualmente el grado de ajuste y asimetría de cada una. Utilizaremos la función importada histogram_plot.
+
+```{r, fig.width=12, fig.height=20}
+
+age_hist <- histogram_plot(df, "Age")
+bmi_hist <- histogram_plot(df, "BMI")
+systolic_hist <- histogram_plot(df, "SystolicBP")
+diastolic_hist <- histogram_plot(df, "DiastolicBP")
+
+chol_total_hist <- histogram_plot(df, "CholesterolTotal")
+chol_ldl_hist <- histogram_plot(df, "CholesterolLDL")
+chol_hdl_hist <- histogram_plot(df, "CholesterolHDL")
+chol_trig_hist <- histogram_plot(df, "CholesterolTriglycerides")
+
+moca_hist <- histogram_plot(df, "MoCA")
+functional_hist <- histogram_plot(df, "FunctionalAssessment")
+alcohol_hist <- histogram_plot(df, "AlcoholConsumption")
+
+
+grid.arrange(age_hist, bmi_hist,
+             systolic_hist, diastolic_hist,
+             chol_total_hist, chol_ldl_hist,
+             chol_hdl_hist, chol_trig_hist,
+             moca_hist, functional_hist,
+             alcohol_hist,                       
+             nrow = 6, ncol = 2)
+```
+
+Al analizar los histogramas de las 11 variables numéricas principales, se observa que ninguna de ellas presenta una forma claramente gaussiana. Las distribuciones no muestran una concentración muy marcada en torno a la media, sino que los valores parecen estar bastante repartidos a lo largo de sus respectivos rangos.
+
+En variables como Age, BMI, presión arterial, Colesterol, MoCA y FunctionalAssessment, las frecuencias no se agrupan fuertemente en el centro. La asimetría es muy cercana a 0 en todos los casos, lo que indica que las distribuciones son bastante simétricas.
+
+No se observan colas muy pronunciadas ni acumulaciones de valores extremos. Aunque puede haber valores altos o bajos, estos se encuentran dentro del rango esperado y no parecen dominar la distribución.
+
+Dado que las variables no muestran asimetrías severas ni colas desproporcionadas, no parece necesario aplicar transformaciones como logaritmos en esta fase exploratoria.
+
+#### 3.1.2 Variables binarias
+
+##### 3.1.1.1 Análisis descriptivo de las variables binarias
+
+Al tratarse de variables binarias (0 = No, 1 = Sí), su análisis se centra en la evaluación de frecuencias absolutas y proporciones relativas.
+
+Para facilitar la lectura, unificamos las frecuencias de las 14 variables clínicas en una única tabla de contingencia.
+
+```{r}
+vars_binarias <- c("Smoking", "FamilyHistoryParkinsons", "TraumaticBrainInjury", "Hypertension", "Diabetes", "Depression", "Stroke",
+                   "Tremor", "Rigidity", "Bradykinesia", "PosturalInstability", "SpeechProblems", "SleepDisorders", "Constipation")
+
+resumen_binarias <- lapply(vars_binarias, function(v) {
+  df %>%
+    group_by(Valor = .data[[v]]) %>%
+    summarise(n = n(), .groups = 'drop') %>%
+    mutate(Variable = v, Porcentaje = round(100 * n / sum(n), 2))
+}) %>%
+  bind_rows() %>%
+  pivot_wider(names_from = Valor, values_from = c(n, Porcentaje)) %>%
+  select(Variable, 
+         `Casos (0 = No)` = n_0, `% (No)` = Porcentaje_0,
+         `Casos (1 = Sí)` = n_1, `% (Sí)` = Porcentaje_1)
+
+formattable(resumen_binarias)
+```
+
+##### 3.1.1.2 Análisis gráfico de las variables binarias
+
+Dividimos la visualización en dos bloques:
+
+**Antecedentes y Estilo de Vida**
+
+```{r}
+
+plot_binario <- function(v) {
+  ggplot(df, aes(x = factor(.data[[v]]), fill = factor(.data[[v]]))) +
+    geom_bar(color = "black", alpha = 0.85) +
+    scale_fill_manual(values = c("#1D3557", "#FFC300")) +
+    labs(title = v, x = "", y = "Frecuencia") +
+    theme_minimal() +
+    theme(legend.position = "none", plot.title = element_text(face = "bold", hjust = 0.5))
+}
+
+graficos_antecedentes <- lapply(vars_binarias[1:7], plot_binario)
+do.call(grid.arrange, c(graficos_antecedentes, ncol = 2))
+
+```
+
+Al observar los gráficos de los antecedentes médicos y hábitos, se aprecia claramente que la categoría mayoritaria en todos ellos es el "0" (barra azul oscura, ausencia de la condición). Visualmente, destaca la barra amarilla del tabaquismo (Smoking), que es la más alta de este grupo, indicando que una parte importante de la muestra fuma. Le sigue la depresión. Por el contrario, el gráfico de accidente cerebrovascular (Stroke) muestra una barra amarilla casi residual, confirmando que es el evento menos frecuente entre los pacientes del estudio.
+
+**Síntomas**
+
+```{r}
+
+graficos_sintomas <- lapply(vars_binarias[8:14], plot_binario)
+do.call(grid.arrange, c(graficos_sintomas, ncol = 2))
+
+```
+
+En el bloque de los síntomas clínicos, las barras amarillas (presencia del síntoma) ganan mucho más protagonismo en comparación con el bloque anterior. El gráfico que más llama la atención es el del temblor (Tremor), donde la barra amarilla (1) es casi tan alta como la azul (0), lo que indica que cerca de la mitad de los pacientes lo padecen. Este resultado es coherente, ya que el temblor es uno de los síntomas más característicos de la enfermedad de Parkinson. Otros síntomas como el estreñimiento (Constipation), los problemas del habla (SpeechProblems) y la rigidez (Rigidity) también muestran barras amarillas elevadas, reflejando su alta frecuencia en esta muestra.
+
+#### 3.1.2 Variables categóricas multinivel
+
+##### 3.1.1.1 Análisis descriptivo de las variables categóricas multinivel
+
+```{r}
+
+df$Ethnicity <- factor(df$Ethnicity,
+                       levels = c(0,1,2,3),
+                       labels = c("Caucásico", "Afroamericano", "Asiático", "Otro"))
+
+df$EducationLevel <- factor(df$EducationLevel,
+                            levels = c(0,1,2,3),
+                            labels = c("Ninguno", "Secundaria", "Licenciatura", "Superior"))
+
+df$Gender <- factor(df$Gender,
+                    levels = c(0,1),
+                    labels = c("Masculino", "Femenino"))
+
+vars_multinivel <- c("Gender", "Ethnicity", "EducationLevel")
+
+tabla_multinivel <- lapply(vars_multinivel, function(v) {
+  df %>%
+    filter(!is.na(.data[[v]])) %>%
+    group_by(.data[[v]]) %>%
+    summarise(Frecuencia = n(), .groups = "drop") %>%
+    mutate(
+      Porcentaje = round(100 * Frecuencia / sum(Frecuencia), 2),
+      Variable = v,
+      Categoria = as.character(.data[[v]]) 
+    ) %>%
+    select(Variable, Categoria, Frecuencia, Porcentaje)
+})
+
+tabla_multinivel <- bind_rows(tabla_multinivel)
+
+formattable(tabla_multinivel, list(
+  Frecuencia = color_bar("lightgreen"),
+  Porcentaje = color_text("black", "blue")
+))
+```
+
+##### 3.1.1.2 Análisis gráfico de las variables categóricas multinivel
+
+```{r fig.width=12, fig.height=5}
+
+plot_multinivel_uni <- function(v) {
+  df %>%
+    filter(!is.na(.data[[v]])) %>% 
+    ggplot(aes(x = .data[[v]])) +
+    geom_bar(fill = "#457b9d", color = "black", alpha = 0.85) +
+    geom_text(stat = 'count', aes(label = after_stat(count)), vjust = -0.5, size = 3.5) +
+    labs(title = paste("Distribución de", v),
+         x = "",
+         y = "Frecuencia") +
+    theme_minimal() +
+    theme(
+      plot.title = element_text(face = "bold", size = 10, hjust = 0.5),
+      axis.text.x = element_text(angle = 30, hjust = 1, size = 10)
+    )
+}
+
+graficos_multi_uni <- lapply(vars_multinivel, plot_multinivel_uni)
+
+do.call(grid.arrange, c(graficos_multi_uni, ncol = 3))
+```
+
+Los gráficos de barras superiores muestran la distribución absoluta de las variables demográficas por categorías (como el Nivel Educativo o la Etnia). Podemos observar lo siguiente:
+
+En relación a la étnia, observamos un fuerte desbalanceo natural en la composición de la muestra. La inmensa mayoría de los pacientes (1270 individuos) pertenecen al grupo de población caucásica (0). Por el contrario, los grupos asiático y otros tienen una representación minoritaria que ronda apenas los 200 pacientes cada uno.
+
+El nivel educativo muestra una distribución concentrada en los niveles intermedios.
+
+Al contrario que la variable de Etnia, el género se muestra casi simétrico. Descartando los valores nulos, encontramos una muestra perfectamente equilibrada entre ambos grupos (960 frente a 940), lo que garantiza que no existen sesgos de representación por sexo en este estudio.
+
+### 3.2 Análisis bivariante (según Diagnóstico)
+
+Una vez confirmada la estructura de las variables, damos el siguiente paso natural: superponer las distribuciones de pacientes sanos (0) y diagnosticados (1). Esto nos permitirá observar visualmente si la enfermedad altera la distribución de alguna de estas métricas o si, por el contrario, los perfiles se solapan por completo.
+
+Utilizaremos la función importada histogram_var_target_plot, que asigna un color a cada clase clínica (azul para sanos, amarillo para Parkinson).
+
+#### 3.2.1 Histogramas de variables numéricas
+
+#### Edad, BMI, Consumo de alcohol, Presión arterial y Evaluación clínica
+
+```{r, fig.width=12, fig.height=12, warning=FALSE}
+df$Diagnosis <- as.factor(df$Diagnosis)
+
+biv_edad <- histogram_var_target_plot(df, "Age", target_var = "Diagnosis")
+biv_bmi <- histogram_var_target_plot(df, "BMI", target_var = "Diagnosis")
+
+biv_sis <- histogram_var_target_plot(df, "SystolicBP", target_var = "Diagnosis")
+biv_dia <- histogram_var_target_plot(df, "DiastolicBP", target_var = "Diagnosis")
+
+biv_moca <- histogram_var_target_plot(df, "MoCA", target_var = "Diagnosis")
+biv_func <- histogram_var_target_plot(df, "FunctionalAssessment", target_var = "Diagnosis")
+biv_alc <- histogram_var_target_plot(df, "AlcoholConsumption", target_var = "Diagnosis") 
+
+
+grid.arrange(biv_edad, biv_bmi, 
+             biv_sis, biv_dia, 
+             biv_moca, biv_func, 
+             biv_alc,                            # <-- Añadido al grid
+             nrow = 4, ncol = 2)
+```
+
+#### Colesterol y Triglicéridos
+
+```{r fig.width=12, fig.height=6, warning=FALSE}
+biv_col <- histogram_var_target_plot(df, "CholesterolTotal")
+biv_trig <- histogram_var_target_plot(df, "CholesterolTriglycerides")
+biv_ldl <- histogram_var_target_plot(df, "CholesterolLDL")
+biv_hdl <- histogram_var_target_plot(df, "CholesterolHDL")
+
+
+grid.arrange(biv_col, biv_trig, 
+             biv_ldl, biv_hdl, 
+             nrow = 2, ncol = 2)
+```
+
+Interpretación Visual Bivariante:
+
+Al estratificar los histogramas por la variable objetivo Diagnosis, observamos solapamiento en las variables. En variables como la edad, el BMI, la presión arterial y el consumo de alcohol, los bloques azules y amarillos se mezclan por completo. Esto significa que ni la edad ni los hábitos de bebida son suficientes por sí solos para diagnosticar la enfermedad, ya que afectan por igual a sanos y enfermos.
+
+Donde sí empezamos a ver un patrón claro es en las evaluaciones (MoCA y FunctionalAssessment). En las puntuaciones más bajas (que indican un mayor deterioro cognitivo o físico), la proporción de pacientes con Parkinson (amarillo) destaca mucho más.
+
+El hecho de que las distribuciones amarillas y azules compartan el mismo espacio univariante en la mayoría de las gráficas es la prueba definitiva de que un simple sistema de reglas manuales no servirá para diagnosticar la enfermedad.
+
+#### 3.2.2 Diagramas de cajas-bigotes de variables numéricas
+
+Para complementar los histogramas, utilizamos diagramas de cajas y bigotes.
+
+#### Edad, BMI, Consumo de alcohol, Presión arterial y Evaluación clínica
+
+```{r fig.width=12, fig.height=8, warning=FALSE}
+
+box_edad <- boxplot_var_target_plot(df, "Age", target_var = "Diagnosis")
+box_bmi <- boxplot_var_target_plot(df, "BMI", target_var = "Diagnosis")
+
+box_sis <- boxplot_var_target_plot(df, "SystolicBP", target_var = "Diagnosis")
+box_dia <- boxplot_var_target_plot(df, "DiastolicBP", target_var = "Diagnosis")
+
+box_moca <- boxplot_var_target_plot(df, "MoCA", target_var = "Diagnosis")
+box_func <- boxplot_var_target_plot(df, "FunctionalAssessment", target_var = "Diagnosis")
+box_alc <- boxplot_var_target_plot(df, "AlcoholConsumption", target_var = "Diagnosis")
+
+
+grid.arrange(box_edad, box_bmi, box_sis, 
+             box_dia, box_moca, box_func, 
+             box_alc,                             
+             nrow = 3, ncol = 3)
+```
+
+Al observar las cajas, podemos extraer las siguientes conclusiones sobre ambos grupos:
+
+Existen ligeras diferencias en edad y consumo de alcohol. Al fijarnos en la línea central de las cajas (la mediana), observamos que los pacientes con Parkinson (caja amarilla) tienen una edad ligeramente superior a los pacientes sanos (caja azul). Del mismo modo, el gráfico de consumo de alcohol muestra que el grupo diagnosticado presenta un nivel de consumo un poco más alto. Aunque no son diferencias extremas, sí marcan una pequeña tendencia en el perfil del paciente.
+
+Donde sí se aprecia un solapamiento es en variables físicas como el peso (BMI) y las presiones arteriales (sistólica y diastólica). Las cajas azules y amarillas están a la misma altura, lo que indica que estos factores no ayudan a distinguir entre un paciente sano y uno enfermo.
+
+El cambio aparece en las pruebas de MoCA y FunctionalAssessment. Aquí, la diferencia de medianas es apreciable, siendo sustancialmente mas baja en los casos de Parkinson. Esto demuestra que el paciente promedio con Parkinson obtiene puntuaciones sistemáticamente más bajas y peores en estos tipos de test que un paciente sano.
+
+Al igual que vimos en los histogramas, no se aprecian apenas puntos atípicos alejados por encima o por debajo de las cajas.
+
+#### Colesterol y Triglicéridos
+
+```{r fig.width=15, fig.height=8, warning=FALSE}
+
+box_col <- boxplot_var_target_plot(df, "CholesterolTotal")
+box_trig <- boxplot_var_target_plot(df, "CholesterolTriglycerides")
+box_ldl <- boxplot_var_target_plot(df, "CholesterolLDL")
+box_hdl <- boxplot_var_target_plot(df, "CholesterolHDL")
+
+grid.arrange(box_col, box_trig, 
+             box_ldl, box_hdl, 
+             nrow = 2, ncol = 2)
+```
+
+Al analizar los diagramas de caja correspondientes a los niveles de colesterol y triglicéridos, la conclusión es de similitud casi absoluta: En las cuatro métricas (Colesterol Total, Triglicéridos, LDL o "colesterol malo" y HDL o "colesterol bueno"), las cajas azules (sanos) y amarillas (Parkinson) se encuentran prácticamente a la misma altura. Sus líneas centrales (las medianas) están alineadas, lo que indica que el nivel promedio es idéntico en ambos grupos.
+
+El tamaño de las cajas (que nos dice cuánto varían los niveles de colesterol de un paciente a otro) también es muy parecido.
+
+#### 3.2.3 Análisis gráfico bivariante de variables binarias
+
+El siguiente panel visualiza la relación entre las 14 variables binarias (antecedentes y síntomas) y el diagnóstico del paciente. Para que la comparativa sea justa independientemente del tamaño de cada grupo, los gráficos muestran proporciones sobre el 100%. En este caso, para una mejor visualización se mantiene el mismo color amarillo para ambos valores de Diagnosis 0 y 1.
+
+```{r fig.width=12, fig.height=15, warning=FALSE}
+
+vars_binarias <- c("Smoking", "Hypertension", "Diabetes", "Depression", 
+                   "Stroke", "TraumaticBrainInjury", "FamilyHistoryParkinsons", 
+                   "Tremor", "Rigidity", "Bradykinesia", "PosturalInstability", 
+                   "SpeechProblems", "SleepDisorders", "Constipation")
+
+df$Diagnosis <- as.factor(df$Diagnosis)
+
+plot_bivariante_binaria <- function(v) {
+  df[[v]] <- as.factor(df[[v]])
+  
+  ggplot(df, aes(x = Diagnosis, fill = .data[[v]])) +
+    geom_bar(position = "fill", color = "black", alpha = 0.85) +
+    scale_y_continuous(labels = scales::percent_format()) +
+    scale_fill_manual(values = c("0" = "#1D3557", "1" = "#FFC300")) +
+    labs(title = v, x = "Diagnosis (0=Sano, 1=Enfermo)", y = "Proporción") +
+    theme_minimal() +
+    theme(plot.title = element_text(face = "bold", hjust = 0.5, size = 11),
+          axis.text.x = element_text(size = 9),
+          axis.title.x = element_text(size = 8),
+          axis.title.y = element_text(size = 8),
+          legend.position = "none") 
+}
+
+graficos_bivariantes <- lapply(vars_binarias, plot_bivariante_binaria)
+
+do.call(grid.arrange, c(graficos_bivariantes, ncol = 3, nrow = 5))
+```
+
+Al observar estos gráficos destacan tres patrones fundamentales:
+
+En los gráficos de temblor (Tremor), rigidez (Rigidity), bradicinesia (Bradykinesia) e inestabilidad postural (PosturalInstability), la porción amarilla se dispara en la columna de los pacientes con Parkinson. Visualmente, esto confirma que son, con mucha diferencia, los indicadores predictivos más fuertes de la enfermedad.
+
+En variables como la depresión (Depression) o la diabetes (Diabetes), la franja amarilla es ligeramente más alta en el grupo diagnosticado. Esto sugiere una relación secundaria, es decir, influyen en el perfil del paciente, pero no son tan determinantes como los síntomas físicos.
+
+En antecedentes como el tabaquismo (Smoking), la hipertensión o los trastornos del sueño (SleepDisorders), las proporciones son casi idénticas en ambas columnas. Esto significa que fumar o dormir mal afecta por igual a sanos y enfermos en nuestra muestra, por lo que no sirven para diferenciar el diagnóstico.
+
+### 3.3 Análisis de correlación de factores de riesgo
+
+Procedemos a realizar un análisis de correlación específico entre los factores de riesgo clásicos (Índice de Masa Corporal, Consumo de Alcohol, Tabaquismo y antecedentes médicos como Hipertensión o Diabetes) y la presencia de la enfermedad (Diagnosis)
+
+Dado que la correlación de Pearson requiere variables continuas o dicotómicas numéricas, nos aseguramos de que nuestra variable objetivo y los antecedentes médicos se traten temporalmente como formato numérico (0 y 1) para la matriz matemática.
+
+```{r fig.width=8, fig.height=6, warning=FALSE, message=FALSE}
+
+factores_riesgo <- df %>%
+  select(Diagnosis, BMI, Smoking, AlcoholConsumption, PhysicalActivity, 
+         DietQuality, SleepQuality, Hypertension, Diabetes, Depression, 
+         Stroke, TraumaticBrainInjury, FamilyHistoryParkinsons) %>%
+
+  mutate(across(everything(), ~ as.numeric(as.character(.))))
+
+matriz_riesgo <- cor(factores_riesgo, use = "pairwise.complete.obs")
+
+colores_matriz <- colorRampPalette(c("#1D3557", "white", "#E63946"))(200)
+
+corrplot(matriz_riesgo, 
+         method = "color",       
+         type = "lower",         
+         tl.col = "black",       
+         tl.cex = 0.75,          
+         addCoef.col = "black",  
+         number.cex = 0.75,      
+         col = colores_matriz,   
+         diag = FALSE,
+         mar = c(0, 0, 1, 0)) 
+
+```
+
+El análisis de correlación revela que los factores de riesgo evaluados presentan asociaciones muy débiles con el diagnóstico de la enfermedad de Parkinson. Únicamente diabetes y depresión muestran significatividad estadística, aunque con una magnitud de efecto reducida. En conjunto, los factores demográficos, de estilo de vida y antecedentes médicos analizados no parecen constituir predictores relevantes del diagnóstico en este conjunto de datos.
+
+### 3.4 Análisis de correlación global
+
+```{r fig.width=8, fig.height=6, warning=FALSE, message=FALSE}
+vars_clinicas <- df %>%
+  select(Diagnosis,
+         Age, BMI,
+         SystolicBP, DiastolicBP,
+         CholesterolTotal, CholesterolLDL, CholesterolHDL, CholesterolTriglycerides,
+         MoCA, FunctionalAssessment,
+         Tremor, Rigidity, Bradykinesia, PosturalInstability,
+         SpeechProblems, SleepDisorders, Constipation) %>%
+  mutate(across(everything(), ~ as.numeric(as.character(.))))
+
+matriz_clinica <- cor(vars_clinicas, use = "pairwise.complete.obs")
+
+corrplot(matriz_clinica,
+         method = "color",
+         type = "lower",
+         tl.col = "black",
+         tl.cex = 0.65,
+         addCoef.col = "black",
+         number.cex = 0.5,
+         col = colores_matriz,
+         diag = FALSE,
+         mar = c(0, 0, 1, 0))
+```
+
+La matriz de correlación muestra que la mayoría de las variables presentan relaciones lineales débiles. No obstante, el diagnóstico (Diagnosis) muestra correlaciones positivas con varios síntomas motores característicos del Parkinson, especialmente Tremor, Rigidity, Bradykinesia y PosturalInstability. Por el contrario, las variables MoCA y FunctionalAssessment presentan correlaciones negativas con el diagnóstico, lo que puede indicar un menor rendimiento cognitivo y funcional en los pacientes diagnosticados. En general, las variables fisiológicas como edad, IMC o presión arterial presentan asociaciones muy bajas con el diagnóstico.
+
+### 3.5 Respuesta a diferentes cuestiones
+
+Uno de los objetivos de este proyecto es dar respuesta a alguna preguntas planteadas en relación con la enfermedad de Parkinson.
+
+**¿Cuáles son los factores más influyentes en el diagnóstico?**
+
+A partir del análisis gráfico descriptivo, los factores que muestran una mayor relación aparente con el diagnóstico de Parkinson son los síntomas motores. Como se observó en los gráficos de proporciones bivariantes, condiciones como el Temblor (Tremor), la Rigidez (Rigidity) y la Bradicinesia muestran un salto drástico en su prevalencia al comparar pacientes sanos con enfermos, confirmando visualmente su peso como principales diferenciadores clínicos en esta muestra.
+
+Por otro lado, al evaluar los factores de riesgo y el estilo de vida mediante la matriz de correlación, se observa que variables como el índice de masa corporal (BMI), el consumo de alcohol y los antecedentes médicos (hipertensión, diabetes, etc.) presentan coeficientes muy bajos o cercanos a cero respecto a la variable Diagnosis. Esto sugiere que, a diferencia de los síntomas físicos, estos factores de riesgo individuales no muestran una influencia lineal directa o determinante para predecir la presencia de la enfermedad en esta muestra específica, a falta de confirmación mediante modelado multivariante.
+
+**¿Cómo afecta la calidad del sueño, la dieta y el nivel de actividad física?**
+
+Al evaluar visualmente el estilo de vida (Calidad del Sueño, Dieta y Actividad Física) mediante histogramas y diagramas de caja cruzados por diagnóstico, se observa un solapamiento casi total entre las distribuciones de pacientes sanos y diagnosticados. La matriz de correlación refleja coeficientes cercanos a cero para estas tres variables. Esto indica que, a nivel estrictamente descriptivo y univariante, ni la dieta, ni el sueño, ni el ejercicio físico parecen estar actuando como factores determinantes para el desarrollo de la enfermedad en esta muestra.
+
+**¿El nivel de triglicéridos alto \>200 es más común en los pacientes diagnosticados de Parkinson?**
+
+```{r}
+
+df$Trigliceridos_Altos <- ifelse(df$CholesterolTriglycerides > 200, 1, 0)
+
+tabla <- table(df$Trigliceridos_Altos, df$Diagnosis)
+
+tabla_prop <- prop.table(tabla, margin = 2) * 100
+
+fila_altos <- tabla_prop[2, , drop = FALSE]
+
+colnames(fila_altos) <- c("Sano (0)", "Parkinson (1)")
+rownames(fila_altos) <- c("> 200 mg/dL")
+
+knitr::kable(round(fila_altos, 2))
+```
+
+La proporción de pacientes con triglicéridos elevados (\>200 mg/dL) es ligeramente superior en el grupo diagnosticado (57.44%) respecto al grupo sano (55.18%). Sin embargo, la diferencia observada es reducida (2 puntos porcentuales) y no sugiere una asociación clínicamente relevante entre hipertrigliceridemia y diagnóstico de Parkinson en esta muestra.
+
+**¿La actividad física semanal alta \> 5 horas reduce la posibilidad de padecer la enfermedad?**
+
+```{r}
+
+tabla_actividad_riesgo <- df %>%
+  mutate(Nivel_Actividad = ifelse(PhysicalActivity > 5, "Alta (> 5h)", "Baja/Moderada (<= 5h)")) %>%
+  group_by(Nivel_Actividad) %>%
+  summarise(
+    Total_Pacientes = n(),
+    Casos_Parkinson = sum(Diagnosis == 1),
+    Porcentaje_Enfermos = (Casos_Parkinson / Total_Pacientes) * 100
+  )
+
+kable(tabla_actividad_riesgo, 
+      digits = 2, 
+      col.names = c("Nivel de Actividad Física", "Total Pacientes", "Casos Parkinson", "% de Enfermos"))
+```
+
+Al analizar la proporción de diagnósticos positivos en función del volumen de ejercicio semanal, los datos revelan que una actividad física alta no actúa como factor protector en esta muestra.
+
+Como se observa en la tabla comparativa, el 60.95% de los pacientes que realizan una actividad física baja o moderada (\< 5 horas semanales) padecen la enfermedad. Por su parte, entre los pacientes que mantienen una actividad física alta (\> 5 horas semanales), la proporción de diagnosticados es del 62.94%.
+
+Realizar más de 5 horas de actividad física a la semana no reduce la posibilidad de padecer la enfermedad de Parkinson en este conjunto de datos.
+
+**¿El consumo alto de alcohol se relaciona con el desarrollo de la enfermedad de Parkinson?**
+
+Consumo Alto de Alcohol (\>10 unidades)
+
+```{r}
+
+df$Alcohol_Alto <- ifelse(df$AlcoholConsumption > 10, 1, 0)
+
+tabla_alcohol <- table(df$Alcohol_Alto, df$Diagnosis)
+
+prop_alcohol <- prop.table(tabla_alcohol, margin = 2) * 100
+
+rownames(prop_alcohol) <- c("No (≤10 unidades)", "Sí (>10 unidades)")
+colnames(prop_alcohol) <- c("Sano (0)", "Parkinson (1)")
+
+knitr::kable(round(prop_alcohol, 2),
+             caption = "Proporción de consumo alto de alcohol por grupo diagnóstico")
+```
+
+El 51.46% de los pacientes diagnosticados presenta consumo alto de alcohol, frente al 48.69% en el grupo sano.
+
+La diferencia observada es reducida (aproximadamente 2.8 puntos porcentuales) y corresponde únicamente a un análisis descriptivo de proporciones. Estos resultados no sugieren una relación clara entre el consumo elevado de alcohol y la presencia de la enfermedad de Parkinson en esta muestra.
+
+No obstante, para confirmar si esta diferencia presenta significación estadística, sería necesario aplicar contrastes de independencia, como el test chi-cuadrado, o evaluar esta variable dentro de modelos predictivos multivariantes en fases posteriores del estudio.
+
+## 4. División del dataset (Train y Test)
+
+Antes de proceder con la imputación de valores nulos y el tratamiento de valores atípicos, es un requisito metodológico fundamental dividir el dataset en dos subconjuntos independientes: un conjunto de entrenamiento (Train) y un conjunto de prueba (Test).
+
+Esta división temprana garantiza que todas las transformaciones estadísticas posteriores (como el cálculo de medianas para imputar NAs o el escalado de variables) se "aprendan" exclusivamente de los datos de entrenamiento. De este modo, el conjunto de prueba se mantiene completamente aislado, simulando la llegada de pacientes nuevos al sistema y evitando el problema conocido como Data Leakage (fuga de datos), el cual generaría métricas de rendimiento artificialmente optimistas.
+
+Se ha optado por una partición del 80% para entrenamiento y 20% para validación. Para llevarla a cabo, se utiliza la función createDataPartition de la librería caret, la cual realiza un muestreo estratificado. Esto asegura que la proporción original de la variable objetivo (Diagnosis) se mantenga idéntica en ambos conjuntos, evitando que por azar el modelo se entrene con una distribución de la enfermedad que no se corresponde con la realidad
+
+```{r, warning=FALSE, message=FALSE}
+library(caret)
+set.seed(123)
+
+train_index <- createDataPartition(df$Diagnosis, p = 0.8, list = FALSE )
+train_data <-  df[train_index, ]
+test_data <- df[-train_index, ]
+
+cat("Pacientes en Entrenamiento (Train):", nrow(train_data), "\n")
+cat("Pacientes en Prueba (Test):", nrow(test_data), "\n")
+```
+
+## 5. Imputación de datos ausentes en las variables correspondientes
+
+Tal y como se demostró en la Revisión de Valores Nulos (Sección 2.4), un total de 8 variables presentan valores nulos rondando el 10% (siendo Diabetes la mayor con un 11.45%). Dado que ninguna supera el umbral crítico del 15%, se conservan todas las variables y se procede a su imputación.
+
+Optamos por una metodología híbrida y multivariante. Es imperativo destacar que todos los estadísticos y modelos de imputación se aprenden exclusivamente sobre el conjunto de entrenamiento (Train) y posteriormente se aplican al conjunto de prueba (Test). Esto garantiza la estanqueidad de la prueba y evita la fuga de información (Data Leakage).
+
+**Variables numéricas continuas**: Se imputarán utilizando el algoritmo K-Nearest Neighbors (KNN). Este método estima el valor faltante identificando a los 'k' pacientes más similares en función de su historial clínico completo, respetando así la varianza y las relaciones subyacentes de los datos mucho mejor que una simple media.
+
+**Variables dicotómicas (0/1)**: Se imputarán utilizando la Moda (el valor más frecuente del conjunto de entrenamiento).
+
+```{r, warning=FALSE, message=FALSE}
+library(caret)
+library(RANN)
+
+# Definimos qué variables son de cada tipo
+vars_continuas <- c("SystolicBP", "CholesterolHDL", "SleepQuality", "DietQuality")
+vars_dicotomicas <- c("Diabetes", "Gender", "SpeechProblems", "Hypertension")
+
+```
+
+### 5.1 Imputación de variables dicotómicas (Usando la moda del Train)
+
+Para las variables categóricas, se extrae la moda del conjunto de entrenamiento. Este estadístico actuará como constante para rellenar las ausencias tanto en los datos de aprendizaje como en los casos aislados del conjunto de prueba.
+
+```{r}
+calcular_moda <- function(x) {
+  x <- na.omit(x)
+  unique(x)[which.max(tabulate(match(x, unique(x))))]
+}
+
+valores_moda <- list()
+
+# Calculamos la moda SOLO en Train y la aplicamos a ambos
+for (var in vars_dicotomicas) {
+  valores_moda[[var]] <- calcular_moda(train_data[[var]])
+  
+  train_data[[var]][is.na(train_data[[var]])] <- valores_moda[[var]]
+  test_data[[var]][is.na(test_data[[var]])]   <- valores_moda[[var]]
+}
+
+```
+
+### 5.2 Imputación de variables numéricas
+
+La imputación mediante KNN requiere una precaución técnica: el algoritmo calcula distancias matemáticas entre pacientes (vecinos). Si las variables no comparten escala, aquellas con magnitudes mayores (como el colesterol) dominarán el cálculo sobre las de menor magnitud (como la calidad del sueño).
+
+Por ello, en el siguiente bloque se utiliza la función preProcess de la librería caret para centrar y estandarizar (center, scale) los datos antes de aplicar la imputación (knnImpute). Además, se introducen todas las columnas numéricas para dotar al algoritmo de un contexto clínico completo a la hora de buscar a los 5 pacientes más afines (k=5).
+
+```{r}
+# 1. Transformamos a data.frame puro para evitar conflictos con data.table o tibbles
+train_data <- as.data.frame(train_data)
+test_data  <- as.data.frame(test_data)
+
+# 2. Forzamos a que las 4 variables continuas problemáticas sean numéricas
+train_data <- train_data %>%
+  mutate(across(all_of(vars_continuas), ~ as.numeric(as.character(.))))
+
+test_data <- test_data %>%
+  mutate(across(all_of(vars_continuas), ~ as.numeric(as.character(.))))
+
+# 3. Seleccionamos todas las columnas numéricas para dar contexto al KNN
+cols_numericas <- train_data %>% select(where(is.numeric)) %>% names()
+
+# 4. Entrenamos el modelo de imputación SOLO con el Train
+modelo_imputacion <- preProcess(train_data[, cols_numericas], 
+                                method = c("center", "scale", "knnImpute"),
+                                k = 5)
+
+# 5. Aplicamos el modelo para rellenar los huecos
+train_data[, cols_numericas] <- predict(modelo_imputacion, train_data[, cols_numericas])
+test_data[, cols_numericas]  <- predict(modelo_imputacion, test_data[, cols_numericas])
+
+cat("\nImputación KNN completada. Nulos en Train:", sum(is.na(train_data)), "| Nulos en Test:", sum(is.na(test_data)), "\n")
+
+```
+
+Con este proceso finalizado, garantizamos la integridad del dataset preservando las distribuciones originales y asegurando que el conjunto de prueba permanece incontaminado y listo para una evaluación predictiva honesta.
+
+## 6 Revisión de posibles valores atípicos (Outliers)
+
+Una vez imputados los datos ausentes, procedemos a la revisión de valores atípicos (outliers) siguiendo tanto métodos univariantes como multivariantes.
+
+### 6.1 Análisis univariante
+
+Para el análisis univariante, evaluamos las variables continuas del conjunto de entrenamiento utilizando el método del Rango Intercuartílico. Haremos uso de la función proporcionada outliers_univariantes, la cual marca con un "1" aquellas observaciones que escapan de los límites naturales de la distribución.
+
+```{r}
+
+vars_numericas <- c("Age", "BMI", "SystolicBP", "DiastolicBP", 
+                    "CholesterolTotal", "CholesterolLDL", "CholesterolHDL", 
+                    "CholesterolTriglycerides", "MoCA", "FunctionalAssessment")
+
+# Aplicamos la función directamente sobre train_data
+for (var in vars_numericas) {
+  train_data <- outliers_univariantes(train_data, var)
+}
+
+columnas_outlier <- paste0("outlier_", vars_numericas)
+
+total_outliers_uni <- train_data %>% 
+  select(all_of(columnas_outlier)) %>% 
+  sum()
+
+cat("Total de valores atípicos univariantes detectados en Train:", total_outliers_uni, "\n")
+```
+
+Tal y como habíamos adelantado visualmente en los diagramas de cajas (sección 3.2.2), el método estadístico confirma que no existen valores atípicos a nivel univariante en la muestra de entrenamiento. Las variables numéricas de este dataset se encuentran estrictamente acotadas (distribución uniforme sin colas pesadas), por lo que ningún paciente presenta valores extremos o errores de medición.
+
+### 6.2 Análisis multivariante (Isolation forest)
+
+Aunque no se han detectado valores atípicos a nivel univariante, es posible que existan observaciones inusuales cuando se consideran simultáneamente varias variables. Para explorar esta posibilidad se utiliza el algoritmo Isolation Forest, un método de aprendizaje no supervisado diseñado específicamente para la detección de anomalías en espacios multidimensionales. Antes de entrenar Isolation Forest, se aísla exclusivamente el conjunto de entrenamiento (Train) y se excluye la variable objetivo (Diagnosis) para evitar cualquier tipo de fuga de datos hacia la fase de validación. Al ser un algoritmo no supervisado, buscamos identificar perfiles anómalos basándonos exclusivamente en las características médicas del paciente, sin sesgar el modelo dándole a conocer el diagnóstico final.
+
+```{r, warning=FALSE, message=FALSE}
+
+# 1. Preparamos los datos SOLO del Train (excluyendo Diagnosis para no sesgar)
+# Convertimos factores a numéricos internamente porque el algoritmo lo requiere
+df_modelo_iso <- train_data %>% 
+  select(-Diagnosis) %>% 
+  mutate(across(where(is.factor), as.numeric))
+
+# 2. Entrenamos el Bosque de Aislamiento SOLO con los "apuntes de clase"
+set.seed(123) 
+iso_forest <- isolationForest$new(
+  sample_size = nrow(df_modelo_iso), 
+  num_trees = 30
+)
+iso_forest$fit(df_modelo_iso)
+```
+
+Una vez entrenado el modelo, se llevan a cabo las predicciones. Para definir el umbral con el que indicar o no si un registro es anómalo se utiliza la distribución de scores. Así, si el valor está fuera del rango de probabilidad del 95% será clasificado como anómalo.
+
+```{r}
+
+# 3. Calculamos la puntuación de rareza (Anomaly Score) de cada paciente
+anomaly_scores <- iso_forest$predict(df_modelo_iso)
+train_data$anomaly_score <- anomaly_scores$anomaly_score
+
+# 4. Definimos el umbral del 95% para etiquetar el top 5% más raro
+threshold <- quantile(train_data$anomaly_score, 0.95)
+train_data$is_anomaly <- train_data$anomaly_score > threshold
+
+cat("\nAnomalías detectadas en el conjunto de entrenamiento (Train):\n")
+print(table(Anomalia = train_data$is_anomaly))
+
+```
+
+El umbral utilizado corresponde al percentil 95 de la distribución de puntuaciones de anomalía, lo que permite identificar aproximadamente el 5% de las observaciones más inusuales del conjunto de datos.
+
+```{r}
+ggplot(train_data, aes(x = anomaly_score)) +
+  geom_histogram(bins = 50, fill = "steelblue", color = "black") +
+  geom_vline(xintercept = threshold, color = "red", linetype = "dashed", linewidth = 1) +
+  labs(title = "Distribución de las Puntuaciones de Anomalía (Train)",
+       subtitle = "La línea roja indica el punto de corte (Cuantil 95%)",
+       x = "Puntuación de Anomalía",
+       y = "Frecuencia") +
+  theme_minimal()
+```
+
+Este tipo de modelos siempre identifica una pequeña parte de las observaciones como anómalas, ya que se basa en detectar los casos más diferentes dentro del conjunto de datos.
+
+En este caso, el análisis univariante previo no detectó valores atípicos y todas las variables presentan valores dentro de rangos razonables. Por ello, los registros identificados como anomalías por Isolation forest no parecen corresponder a errores o valores imposibles, sino simplemente a observaciones menos frecuentes dentro de la muestra. Por tanto, se decide no eliminar las observaciones identificadas como anomalías, ya que no hay evidencia suficiente para considerarlas errores o registros inválidos y podría implicar la pérdida de información útil para el análisis posterior.
+
+A continuación, se muestra el número de observaciones que el algoritmo clasifica como anomalías. Aunque el modelo identifica un pequeño porcentaje de registros como potencialmente atípicos, se decide mantener todas las observaciones en el conjunto de entrenamiento. Se eliminan únicamente las variables auxiliares generadas durante el proceso.
+
+```{r}
+
+formattable(as.data.frame(table(Anomalia = train_data$is_anomaly)))
+
+# Asumiendo que 'columnas_outlier' viene de tu análisis univariante previo (si lo mantuviste)
+columnas_a_quitar <- c(columnas_outlier)
+
+train_data <- train_data %>% 
+  select(-anomaly_score, -is_anomaly, -any_of(columnas_a_quitar))
+
+cat("\nDimensiones del conjunto Train tras la limpieza de variables:", nrow(train_data), "pacientes.\n")
+```
+
+## 7. Balanceo de la muestra
+
+El último paso antes de la fase de modelización predictiva, es garantizar que los algoritmos de clasificación no sufran el sesgo de la clase mayoritaria. Un modelo entrenado con datos desbalanceados tenderá a predecir siempre la clase más frecuente, ignorando los patrones subyacentes de la clase minoritaria.
+
+### 7.1 Diagnóstico del desbalanceo inicial
+
+Previamente a realizar el balanceo, cuantificamos la distribución actual de nuestra variable objetivo (Diagnosis) en el conjunto de datos de entrenamiento (train_data).
+
+```{r}
+ggplot(train_data, aes(x = Diagnosis, fill = Diagnosis)) +
+  geom_bar(color = "black") +
+  geom_text(stat = "count", aes(label = after_stat(count)), vjust = -0.5) +
+  scale_fill_manual(values = c("#1D3557", "#FFC300"), labels = c("0: Sano", "1: Parkinson")) +
+  labs(
+    title = "Distribución de la variable objetivo en Train (Diagnosis)",
+    x = "Diagnosis",
+    y = "Número de pacientes"
+  ) +
+  theme_minimal()
+```
+
+```{r}
+
+tabla_clases <- train_data %>%
+  group_by(Diagnosis) %>%
+  summarise(Pacientes = n()) %>%
+  mutate(Porcentaje = round(Pacientes / sum(Pacientes) * 100, 2))
+
+formattable(tabla_clases, list(
+  Pacientes = color_bar("lightblue"),
+  Porcentaje = color_text("black", "red")
+))
+```
+
+### 7.2 Estrategia estadística: SMOTE (Oversampling)
+
+Se aplica la técnica de Smote Oversampling que consiste en la generación de forma sintética de nuevos registros de la clase minoritaria hasta alcanzar el equilibrio de clases.
+
+La elección de esta técnica responde al alto valor de los datos clínicos. Reducir la clase mayoritaria habría supuesto la pérdida irrecuperable de registros reales de pacientes enfermos, desestimando características y patrones sintomatológicos que son vitales para la capacidad de predicción del modelo.
+
+El balanceo se aplica exclusivamente sobre el conjunto de entrenamiento (train_data). El conjunto de validación (test_data) se mantiene inalterado y con su desbalanceo natural, garantizando una evaluación predictiva realista.
+
+```{r}
+# Aseguramos que Diagnosis es un factor
+train_data$Diagnosis <- as.factor(train_data$Diagnosis)
+test_data$Diagnosis <- as.factor(test_data$Diagnosis)
+
+# Le quitamos la etiqueta "ordered" a EducationLevel en ambos conjuntos para mantener la simetría
+train_data$EducationLevel <- factor(train_data$EducationLevel, ordered = FALSE)
+test_data$EducationLevel  <- factor(test_data$EducationLevel, ordered = FALSE)
+
+# Aplicamos SMOTE para equilibrar hacia la clase mayoritaria
+# Añadimos dist = "HEOM" para que sepa calcular distancias con factores
+train_data_balanceado <- SmoteClassif(Diagnosis ~ ., 
+                                      dat = as.data.frame(train_data), 
+                                      C.perc = "balance",
+                                      dist = "HEOM")
+
+# Visualización
+ggplot(train_data_balanceado, aes(x = Diagnosis, fill = Diagnosis)) +
+  geom_bar(color = "black", alpha = 0.85) +
+  geom_text(stat = 'count', aes(label = after_stat(count)), vjust = -0.5, fontface = "bold") +
+  scale_fill_manual(values = c("#1D3557", "#FFC300"), labels = c("0: Sano", "1: Parkinson")) +
+  labs(title = "Distribución tras SMOTE en el conjunto de Entrenamiento",
+       subtitle = "Ambas clases se encuentran perfectamente equilibradas",
+       x = "Diagnóstico (Diagnosis)",
+       y = "Número de Pacientes",
+       fill = "Clase") +
+  theme_minimal() +
+  theme(plot.title = element_text(face = "bold"))
+
+cat("\nDimensiones del Train balanceado:", nrow(train_data_balanceado), "pacientes.\n")
+cat("El Test se mantiene intacto con", nrow(test_data), "pacientes.\n")
+```
+
+## Conclusión del preprocesamiento:
+
+Con este último paso, se ha completado la transformación de un conjunto de observaciones en bruto en dos conjuntos de datos de alta calidad analítica. Se han descrito las variables, imputado los valores ausentes mediante métodos multivariantes (KNN), se ha analizado la naturaleza de los valores atípicos y se ha establecido un equilibrio de clases coherente con las exigencias del proyecto en los datos de entrenamiento.
+
+Finalmente, los objetos train_data_balanceado y test_data se exportan a archivos Parquet independientes para ser utilizados en la fase posterior de modelización predictiva.
+
+```{r}
+write_parquet(train_data_balanceado, "train_parkinsons_preprocesado.parquet")
+write_parquet(test_data, "test_parkinsons_preprocesado.parquet")
+```
