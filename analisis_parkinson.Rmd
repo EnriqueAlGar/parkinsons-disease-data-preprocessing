@@ -104,9 +104,12 @@ df <- read_parquet(data_filepath)
 
 ### 2.1 Lectura del dataset y dimensiones
 
-<div style="width: 100%; overflow-x: auto;">
+
 ```{r}
-formattable(head(df, 5))
+head(df, 5) %>%
+  kable() %>%
+  kable_styling(bootstrap_options = c("striped", "hover")) %>%
+  scroll_box(width = "100%")
 ```
 
 Contar con 2.105 pacientes proporciona una base suficiente para realizar análisis estadísticos exploratorios y modelización posterior. Este primer vistazo a la tabla nos sirve para ver que existen variables dicotómicas numéricas, que vamos a tener que convertir a factor.
