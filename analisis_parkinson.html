@@ -1366,18 +1366,6 @@ PREPROCESADO DE DATOS - PARKINSONS_DISEASE_DATA
       variables</a></li>
       <li><a href="#carga-y-exploraci%C3%B3n-inicial-de-datos" id="toc-carga-y-exploración-inicial-de-datos">2. Carga y
       exploración inicial de datos</a></li>
-      <li><a href="#an%C3%A1lisis-descriptivo-y-gr%C3%A1fico" id="toc-análisis-descriptivo-y-gráfico">3. Análisis descriptivo y
-      gráfico</a></li>
-      <li><a href="#divisi%C3%B3n-del-dataset-train-y-test" id="toc-división-del-dataset-train-y-test">4. División del dataset
-      (Train y Test)</a></li>
-      <li><a href="#imputaci%C3%B3n-de-datos-ausentes-en-las-variables-correspondientes" id="toc-imputación-de-datos-ausentes-en-las-variables-correspondientes">5.
-      Imputación de datos ausentes en las variables
-      correspondientes</a></li>
-      <li><a href="#revisi%C3%B3n-de-posibles-valores-at%C3%ADpicos-outliers" id="toc-revisión-de-posibles-valores-atípicos-outliers">6 Revisión
-      de posibles valores atípicos (Outliers)</a></li>
-      <li><a href="#balanceo-de-la-muestra" id="toc-balanceo-de-la-muestra">7. Balanceo de la muestra</a></li>
-      <li><a href="#conclusi%C3%B3n-del-preprocesamiento" id="toc-conclusión-del-preprocesamiento">Conclusión del
-      preprocesamiento:</a></li>
       </ul>
     </div>
     <div id="postamble" data-toggle="wy-nav-shift" class="status">
@@ -1519,6 +1507,7 @@ Sí).</li>
 <span id="cb1-30"><a href="#cb1-30" tabindex="-1"></a>df <span class="ot">&lt;-</span> <span class="fu">read_parquet</span>(data_filepath)</span></code></pre></div>
 <div id="lectura-del-dataset-y-dimensiones" class="section level3">
 <h3>2.1 Lectura del dataset y dimensiones</h3>
+<div style="width: 100%; overflow-x: auto;">
 <div class="sourceCode" id="cb2"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb2-1"><a href="#cb2-1" tabindex="-1"></a><span class="fu">formattable</span>(<span class="fu">head</span>(df, <span class="dv">5</span>))</span></code></pre></div>
 <table class="table table-condensed">
 <thead>
@@ -2144,7 +2133,6 @@ no hay filas duplicadas.</li>
 cantidad hay y poder seleccionar el método correcto para su tratamiento
 .</li>
 </ul>
-</div>
 <div id="duplicados-e-identificadores" class="section level3">
 <h3>2.2 Duplicados e identificadores</h3>
 <p>Se realiza la comprobación para comprobar si existen filas repetidas
@@ -2617,7 +2605,6 @@ pacientes.</p>
 <p>La exploración inicial de los datos confirma la integridad
 estructural del dataset con la ausencia de duplicados y/o de pacientes
 con mayoría de datos faltantes.</p>
-</div>
 </div>
 <div id="análisis-descriptivo-y-gráfico" class="section level2">
 <h2>3. Análisis descriptivo y gráfico</h2>
@@ -4543,6 +4530,9 @@ a archivos Parquet independientes para ser utilizados en la fase
 posterior de modelización predictiva.</p>
 <div class="sourceCode" id="cb61"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb61-1"><a href="#cb61-1" tabindex="-1"></a><span class="fu">write_parquet</span>(train_data_balanceado, <span class="st">&quot;train_parkinsons_preprocesado.parquet&quot;</span>)</span>
 <span id="cb61-2"><a href="#cb61-2" tabindex="-1"></a><span class="fu">write_parquet</span>(test_data, <span class="st">&quot;test_parkinsons_preprocesado.parquet&quot;</span>)</span></code></pre></div>
+</div>
+</div>
+</div>
 </div>
 </div>
 

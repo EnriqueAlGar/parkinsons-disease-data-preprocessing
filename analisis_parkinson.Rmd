@@ -104,6 +104,7 @@ df <- read_parquet(data_filepath)
 
 ### 2.1 Lectura del dataset y dimensiones
 
+<div style="width: 100%; overflow-x: auto;">
 ```{r}
 formattable(head(df, 5))
 ```
